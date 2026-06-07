@@ -31,15 +31,16 @@ app.use((req, res, next) => {
 // Health check endpoint verifying Firebase connectivity
 app.get("/health", async (req, res) => {
   try {
-    // Attempt a light read to confirm database connectivity
-    await db.listCollections();
+    // Simple doc read to verify Firestore connectivity
+    // (listCollections() requires elevated IAM and often fails with NOT_FOUND)
+    await db.collection("problem_testcases").limit(1).get();
     res.status(200).json({
       status: "UP",
       firebase: "CONNECTED",
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("Health check Firestore error:", error);
+    console.error("Health check Firestore error:", error.message);
     res.status(500).json({
       status: "DOWN",
       firebase: "ERROR",
@@ -48,6 +49,10 @@ app.get("/health", async (req, res) => {
     });
   }
 });
+
+// ── API Routes ──
+const problemsRouter = require("./routes/problems");
+app.use("/api/problems", problemsRouter);
 
 // Fallback Route
 app.use((req, res) => {

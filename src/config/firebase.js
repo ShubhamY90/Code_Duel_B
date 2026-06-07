@@ -13,16 +13,21 @@ if (!fs.existsSync(resolvedPath)) {
 try {
   const serviceAccount = JSON.parse(fs.readFileSync(resolvedPath, "utf8"));
   admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
+    credential: admin.credential.cert(serviceAccount),
+    projectId: serviceAccount.project_id,
   });
-  console.log("🔥 Firebase Admin SDK initialized successfully.");
+  console.log(`🔥 Firebase Admin SDK initialized for project: ${serviceAccount.project_id}`);
 } catch (error) {
   console.error("❌ Failed to initialize Firebase Admin SDK:", error);
   process.exit(1);
 }
 
 const db = admin.firestore();
+// Explicitly target the default database to avoid NOT_FOUND on multi-db projects
+db.settings({ databaseId: 'default' });
 const auth = admin.auth();
+
+console.log("📦 Firestore connected to database: default");
 
 module.exports = {
   admin,
