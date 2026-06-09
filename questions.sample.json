@@ -1,0 +1,43 @@
+[
+  {
+    "name": "Maximum Subarray Sum",
+    "difficulty": "Easy",
+    "rating": 1100,
+    "description": "Given an array of N integers, find the maximum possible sum of a contiguous subarray.",
+    "constraints": {
+      "n": "1 <= N <= 100000",
+      "arr[i]": "-1000000000 <= arr[i] <= 1000000000"
+    },
+    "inputFormat": [
+      "First line contains N",
+      "Second line contains N space-separated integers"
+    ],
+    "outputFormat": [
+      "Print the maximum subarray sum"
+    ],
+    "sampleTestCases": [
+      {
+        "structuredInput": {
+          "n": 5,
+          "arr": [1, 2, 3, -2, 5]
+        },
+        "input": "5\n1 2 3 -2 5",
+        "output": "9",
+        "explanation": "The subarray [1, 2, 3, -2, 5] has sum 9, which is the maximum. Kadane's algorithm picks all elements since the total is optimal."
+      },
+      {
+        "structuredInput": {
+          "n": 4,
+          "arr": [-2, -3, -1, -4]
+        },
+        "input": "4\n-2 -3 -1 -4",
+        "output": "-1",
+        "explanation": "All elements are negative. The maximum subarray sum is the least-negative element, which is -1 (single element subarray)."
+      }
+    ],
+    "hiddenTestCases": [
+      { "input": "1\n5", "output": "5" },
+      { "input": "1\n-10", "output": "-10" }
+    ]
+  }
+]
