@@ -54,10 +54,12 @@ app.get("/health", async (req, res) => {
 const problemsRouter     = require("./routes/problems");
 const usersRouter        = require("./routes/users");
 const submissionsRouter  = require("./routes/submissions");
+const roomsRouter        = require("./routes/rooms");
 
 app.use("/api/problems",     problemsRouter);
 app.use("/api/users",        usersRouter);
 app.use("/api/submissions",  submissionsRouter);
+app.use("/api/rooms",        roomsRouter);
 
 // Fallback Route
 app.use((req, res) => {

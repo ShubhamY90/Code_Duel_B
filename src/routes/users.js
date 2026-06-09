@@ -2,6 +2,7 @@ const express = require("express");
 const router  = express.Router();
 const { db }  = require("../config/firebase");
 const { FieldValue } = require("firebase-admin/firestore");
+const { authenticateToken } = require("../middlewares/auth");
 
 /**
  * POST /api/users/init
@@ -10,13 +11,15 @@ const { FieldValue } = require("firebase-admin/firestore");
  * Creates the user document only if it doesn't already exist,
  * so repeat logins never overwrite the rating or stats.
  *
- * Body: { uid, displayName, email, photoURL }
+ * Expects Bearer ID token in Authorization header.
+ * Body: { displayName, photoURL }
  */
-router.post("/init", async (req, res) => {
-    const { uid, displayName, email, photoURL } = req.body;
+router.post("/init", authenticateToken, async (req, res) => {
+    const { uid, email } = req.user;
+    const { displayName, photoURL } = req.body;
 
     if (!uid || !email) {
-        return res.status(400).json({ error: "uid and email are required" });
+        return res.status(400).json({ error: "uid and email are required in token" });
     }
 
     try {

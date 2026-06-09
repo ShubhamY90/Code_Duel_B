@@ -1,20 +1,20 @@
 const express = require("express");
 const router  = express.Router();
 const { db }  = require("../config/firebase");
+const { authenticateToken } = require("../middlewares/auth");
 
 /**
- * GET /api/submissions?userId=<uid>&limit=<n>
+ * GET /api/submissions?limit=<n>
  *
  * Returns the authenticated user's submissions, newest first.
  * Sorted in-memory (no composite Firestore index required).
+ *
+ * Expects Bearer ID token in Authorization header.
  */
-router.get("/", async (req, res) => {
-    const { userId, limit: limitParam } = req.query;
+router.get("/", authenticateToken, async (req, res) => {
+    const userId = req.user.uid;
+    const { limit: limitParam } = req.query;
     const limit = Math.min(parseInt(limitParam) || 50, 100);
-
-    if (!userId) {
-        return res.status(400).json({ error: "userId query parameter is required" });
-    }
 
     try {
         const snap = await db
