@@ -28,7 +28,7 @@ async function buildProblemResponse(problemId) {
 
   const problemData = problemSnap.exists ? problemSnap.data() : {};
 
-  // Normalize sampleTestCases — handle the 'explaination' typo in stored data
+  // Normalize sampleTestCases
   const rawCases = testcasesSnap.exists
     ? testcasesSnap.data().sampleTestCases ?? []
     : [];
@@ -36,7 +36,6 @@ async function buildProblemResponse(problemId) {
     input: tc.input ?? "",
     output: tc.output ?? "",
     structuredInput: tc.structuredInput ?? tc.structured_input ?? null,
-    // Accept either spelling: explanation (correct) or explaination (typo in DB)
     explanation: tc.explanation ?? tc.explaination ?? "",
   }));
 
