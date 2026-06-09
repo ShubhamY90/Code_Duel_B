@@ -35,6 +35,7 @@ async function buildProblemResponse(problemId) {
   const sampleTestCases = rawCases.map((tc) => ({
     input: tc.input ?? "",
     output: tc.output ?? "",
+    structuredInput: tc.structuredInput ?? tc.structured_input ?? null,
     // Accept either spelling: explanation (correct) or explaination (typo in DB)
     explanation: tc.explanation ?? tc.explaination ?? "",
   }));
