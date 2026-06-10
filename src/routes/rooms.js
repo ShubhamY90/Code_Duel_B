@@ -77,6 +77,7 @@ router.post("/create", authenticateToken, async (req, res) => {
       status: "waiting",
       hostReady: false,
       guestReady: false,
+      matchId: null,        // populated when match completes
       startedAt: null,
       completedAt: null,
       createdAt: FieldValue.serverTimestamp()
