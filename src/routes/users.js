@@ -142,25 +142,30 @@ router.post("/update-ratings-internal", internalAuth, async (req, res) => {
         lastMatchAt:     FieldValue.serverTimestamp(),
       });
     } else {
-      // Win/Loss: update ratings + per-mode win and loss counters
+      // Win/Loss: update per-mode counters; only update ELO rating for PUBLIC matches
       const winnerPlayedField = isPublic ? "matchesPlayedPublic"  : "matchesPlayedPrivate";
       const winnerWonField    = isPublic ? "matchesWonPublic"     : "matchesWonPrivate";
       const loserPlayedField  = isPublic ? "matchesPlayedPublic"  : "matchesPlayedPrivate";
       const loserLostField    = isPublic ? "matchesLostPublic"    : "matchesLostPrivate";
 
-      batch.update(winnerRef, {
-        rating:           newWinnerRating,
+      // Build winner update — rating only changes for public matches
+      const winnerUpdate = {
         [winnerPlayedField]: FieldValue.increment(1),
         [winnerWonField]:    FieldValue.increment(1),
-        lastMatchAt:      FieldValue.serverTimestamp(),
-      });
+        lastMatchAt:         FieldValue.serverTimestamp(),
+      };
+      if (isPublic) winnerUpdate.rating = newWinnerRating;
 
-      batch.update(loserRef, {
-        rating:           newLoserRating,
+      // Build loser update — rating only changes for public matches
+      const loserUpdate = {
         [loserPlayedField]:  FieldValue.increment(1),
         [loserLostField]:    FieldValue.increment(1),
-        lastMatchAt:      FieldValue.serverTimestamp(),
-      });
+        lastMatchAt:         FieldValue.serverTimestamp(),
+      };
+      if (isPublic) loserUpdate.rating = newLoserRating;
+
+      batch.update(winnerRef, winnerUpdate);
+      batch.update(loserRef,  loserUpdate);
     }
 
     await batch.commit();
