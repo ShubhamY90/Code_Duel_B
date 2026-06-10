@@ -71,16 +71,24 @@ router.post("/create", authenticateToken, async (req, res) => {
     // 3. Construct the room document with readiness properties
     const roomDoc = {
       roomCode,
-      hostId,
-      guestId: null,
+      creatorId: hostId,
       problemId,
       status: "waiting",
-      hostReady: false,
-      guestReady: false,
       matchId: null,        // populated when match completes
       startedAt: null,
       completedAt: null,
-      createdAt: FieldValue.serverTimestamp()
+      createdAt: FieldValue.serverTimestamp(),
+      participants: {
+        [hostId]: {
+          userId: hostId,
+          ready: false,
+          score: 0,
+          testCasesPassed: 0,
+          progress: 0,
+          solved: false,
+          bestCode: ""
+        }
+      }
     };
 
     const docRef = await db.collection("rooms").add(roomDoc);
@@ -118,7 +126,7 @@ router.post("/join", authenticateToken, async (req, res) => {
       .get();
 
     if (querySnap.empty) {
-      // Check if room exists but status is already active/completed/ready
+      // Check if room exists but status is already active/completed
       const codeOnlySnap = await db.collection("rooms")
         .where("roomCode", "==", roomCode)
         .limit(1)
@@ -128,8 +136,11 @@ router.post("/join", authenticateToken, async (req, res) => {
         return res.status(404).json({ error: "Room not found" });
       } else {
         const existingRoom = codeOnlySnap.docs[0].data();
-        if (existingRoom.hostId === guestId) {
-          return res.status(400).json({ error: "You cannot join your own room as a guest" });
+        if (existingRoom.creatorId === guestId) {
+          return res.status(200).json({
+            roomId: codeOnlySnap.docs[0].id,
+            roomCode
+          });
         }
         return res.status(400).json({ error: `Room is already ${existingRoom.status}` });
       }
@@ -138,17 +149,25 @@ router.post("/join", authenticateToken, async (req, res) => {
     const roomDoc = querySnap.docs[0];
     const roomData = roomDoc.data();
 
-    // 2. Validate host and guest are different
-    if (roomData.hostId === guestId) {
-      return res.status(400).json({ error: "You cannot join your own room as a guest" });
+    // 2. Check if already in participants list
+    if (roomData.participants && roomData.participants[guestId]) {
+      return res.status(200).json({
+        roomId: roomDoc.id,
+        roomCode
+      });
     }
 
     // 3. Update room document in Firestore
     await roomDoc.ref.update({
-      guestId,
-      status: "ready",
-      guestReady: false,
-      hostReady: false
+      [`participants.${guestId}`]: {
+        userId: guestId,
+        ready: false,
+        score: 0,
+        testCasesPassed: 0,
+        progress: 0,
+        solved: false,
+        bestCode: ""
+      }
     });
 
     console.log(`[POST /api/rooms/join] Guest ${guestId} joined room ${roomDoc.id} (code ${roomCode})`);
