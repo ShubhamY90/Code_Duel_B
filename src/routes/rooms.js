@@ -182,4 +182,100 @@ router.post("/join", authenticateToken, async (req, res) => {
   }
 });
 
+const { internalAuth } = require("../middlewares/internalAuth");
+
+/**
+ * POST /api/rooms/create-internal
+ *
+ * Internal-only endpoint called by the Realtime Server when a matchmaker
+ * pair is found. Creates a room pre-populated with both players and sets
+ * status to "active" so they jump straight into the duel.
+ *
+ * Protected by x-internal-secret header (no Firebase Auth).
+ *
+ * Body:   { player1Id, player2Id }
+ * Returns { roomId }
+ */
+router.post("/create-internal", internalAuth, async (req, res) => {
+  const { player1Id, player2Id } = req.body;
+
+  if (!player1Id || !player2Id) {
+    return res.status(400).json({ error: "player1Id and player2Id are required" });
+  }
+
+  try {
+    // 1. Pick a random problem (same logic as /create)
+    const docRefs = await db.collection("problems").listDocuments();
+    let problemId = "";
+
+    if (docRefs.length > 0) {
+      problemId = docRefs[Math.floor(Math.random() * docRefs.length)].id;
+    } else {
+      const testcaseRefs = await db.collection("problem_testcases").listDocuments();
+      if (testcaseRefs.length === 0) {
+        return res.status(404).json({ error: "No problems found in the database" });
+      }
+      problemId = testcaseRefs[Math.floor(Math.random() * testcaseRefs.length)].id;
+    }
+
+    // 2. Generate a unique roomCode (same logic as /create)
+    let roomCode = "";
+    let isUnique = false;
+    let attempts = 0;
+
+    while (!isUnique && attempts < 10) {
+      roomCode = generateRoomCode();
+      const querySnap = await db.collection("rooms")
+        .where("roomCode", "==", roomCode)
+        .limit(1)
+        .get();
+      if (querySnap.empty) isUnique = true;
+      attempts++;
+    }
+
+    if (!isUnique) {
+      return res.status(500).json({ error: "Failed to generate a unique room code" });
+    }
+
+    // 3. Build participant stubs for both players
+    const participantStub = (uid) => ({
+      userId: uid,
+      ready: true,          // matched players are implicitly ready
+      score: 0,
+      testCasesPassed: 0,
+      progress: 0,
+      solved: false,
+      bestCode: "",
+    });
+
+    const roomDoc = {
+      roomCode,
+      creatorId: player1Id,   // player1 is the nominal host
+      problemId,
+      status: "active",       // skips "waiting" — match already confirmed
+      matchId: null,
+      startedAt: FieldValue.serverTimestamp(),
+      completedAt: null,
+      createdAt: FieldValue.serverTimestamp(),
+      participants: {
+        [player1Id]: participantStub(player1Id),
+        [player2Id]: participantStub(player2Id),
+      },
+    };
+
+    const docRef = await db.collection("rooms").add(roomDoc);
+
+    console.log(
+      `[POST /api/rooms/create-internal] Created room ${docRef.id} ` +
+      `(${roomCode}) for ${player1Id} vs ${player2Id} — problem: ${problemId}`
+    );
+
+    return res.status(201).json({ roomId: docRef.id });
+  } catch (error) {
+    console.error("[POST /api/rooms/create-internal] Error:", error.message);
+    return res.status(500).json({ error: "Internal server error", message: error.message });
+  }
+});
+
 module.exports = router;
+

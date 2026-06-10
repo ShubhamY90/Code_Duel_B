@@ -38,8 +38,18 @@ router.post("/init", authenticateToken, async (req, res) => {
             photoURL:    photoURL || null,
             createdAt:   FieldValue.serverTimestamp(),
             rating:      1000,
-            matchesPlayed: 0,
-            matchesWon:    0,
+
+            // ── Public match stats ──
+            matchesPlayedPublic: 0,
+            matchesWonPublic:    0,
+            matchesLostPublic:   0,
+            matchesTiedPublic:   0,
+
+            // ── Private match stats ──
+            matchesPlayedPrivate: 0,
+            matchesWonPrivate:    0,
+            matchesLostPrivate:   0,
+            matchesTiedPrivate:   0,
         };
 
         await ref.set(newUser);
@@ -68,6 +78,105 @@ router.get("/:uid", async (req, res) => {
         console.error(`[GET /api/users/${uid}] Error:`, err.message);
         return res.status(500).json({ error: "Internal server error", message: err.message });
     }
+});
+
+const { internalAuth } = require("../middlewares/internalAuth");
+
+/**
+ * POST /api/users/update-ratings-internal
+ *
+ * Internal-only endpoint called by the ELO worker after a match completes.
+ * Atomically updates both players' ratings and match stats in Firestore.
+ *
+ * Protected by x-internal-secret header (no Firebase Auth).
+ *
+ * Body: {
+ *   roomId, winnerId, loserId,
+ *   newWinnerRating, newLoserRating,
+ *   winnerDelta, loserDelta,
+ *   matchType: 'public' | 'private',
+ *   isDraw: boolean,
+ * }
+ * Returns { success: true }
+ */
+router.post("/update-ratings-internal", internalAuth, async (req, res) => {
+  const {
+    winnerId,
+    loserId,
+    newWinnerRating,
+    newLoserRating,
+    winnerDelta,
+    loserDelta,
+    roomId,
+    matchType = "public",
+    isDraw    = false,
+  } = req.body;
+
+  // For a draw, winnerId and loserId represent both participants
+  if (!winnerId || !loserId || newWinnerRating == null || newLoserRating == null) {
+    return res.status(400).json({
+      error: "winnerId, loserId, newWinnerRating, newLoserRating are required",
+    });
+  }
+
+  const isPublic  = matchType === "public";
+  const winnerRef = db.collection("users").doc(winnerId);
+  const loserRef  = db.collection("users").doc(loserId);
+
+  try {
+    const batch = db.batch();
+
+    if (isDraw) {
+      // Tie: both players' ratings unchanged, increment tied counter for both
+      const tiedField   = isPublic ? "matchesTiedPublic"   : "matchesTiedPrivate";
+      const playedField = isPublic ? "matchesPlayedPublic"  : "matchesPlayedPrivate";
+
+      batch.update(winnerRef, {
+        [playedField]:   FieldValue.increment(1),
+        [tiedField]:     FieldValue.increment(1),
+        lastMatchAt:     FieldValue.serverTimestamp(),
+      });
+      batch.update(loserRef, {
+        [playedField]:   FieldValue.increment(1),
+        [tiedField]:     FieldValue.increment(1),
+        lastMatchAt:     FieldValue.serverTimestamp(),
+      });
+    } else {
+      // Win/Loss: update ratings + per-mode win and loss counters
+      const winnerPlayedField = isPublic ? "matchesPlayedPublic"  : "matchesPlayedPrivate";
+      const winnerWonField    = isPublic ? "matchesWonPublic"     : "matchesWonPrivate";
+      const loserPlayedField  = isPublic ? "matchesPlayedPublic"  : "matchesPlayedPrivate";
+      const loserLostField    = isPublic ? "matchesLostPublic"    : "matchesLostPrivate";
+
+      batch.update(winnerRef, {
+        rating:           newWinnerRating,
+        [winnerPlayedField]: FieldValue.increment(1),
+        [winnerWonField]:    FieldValue.increment(1),
+        lastMatchAt:      FieldValue.serverTimestamp(),
+      });
+
+      batch.update(loserRef, {
+        rating:           newLoserRating,
+        [loserPlayedField]:  FieldValue.increment(1),
+        [loserLostField]:    FieldValue.increment(1),
+        lastMatchAt:      FieldValue.serverTimestamp(),
+      });
+    }
+
+    await batch.commit();
+
+    console.log(
+      `[POST /api/users/update-ratings-internal] roomId=${roomId} matchType=${matchType} isDraw=${isDraw} — ` +
+      (isDraw
+        ? `tie between ${winnerId} and ${loserId}`
+        : `${winnerId}: +${winnerDelta} → ${newWinnerRating} | ${loserId}: ${loserDelta} → ${newLoserRating}`)
+    );
+
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    console.error("[POST /api/users/update-ratings-internal] Error:", err.message);
+    return res.status(500).json({ error: "Internal server error", message: err.message });
+  }
 });
 
 module.exports = router;

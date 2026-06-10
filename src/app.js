@@ -55,11 +55,13 @@ const problemsRouter     = require("./routes/problems");
 const usersRouter        = require("./routes/users");
 const submissionsRouter  = require("./routes/submissions");
 const roomsRouter        = require("./routes/rooms");
+const matchesRouter      = require("./routes/matches");
 
 app.use("/api/problems",     problemsRouter);
 app.use("/api/users",        usersRouter);
 app.use("/api/submissions",  submissionsRouter);
 app.use("/api/rooms",        roomsRouter);
+app.use("/api/matches",      matchesRouter);
 
 // Fallback Route
 app.use((req, res) => {
